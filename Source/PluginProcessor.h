@@ -69,6 +69,22 @@ public:
     juce::AudioProcessorValueTreeState apvts{ *this, nullptr, "Parameters", createParameterLayout() };
 
 private:
+    /*
+     * DSP is set up to process mono (1 channel) audio, unless specified as stereo (2 channel) in documentation
+     * Each IIR::Filter has a response (slope) of 12 dB/Oct when configured as low/high pass filter
+     */
+    using Filter = juce::dsp::IIR::Filter<float>;
+
+    /*
+     * DSP namespace concept:
+     * Create a ProcessorChain which holds all the needed IIR::Filters
+     * Pass in a processing context which will run through the chain automatically
+     */
+    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>; // Represents the mono signal chain: LowCut -> Parametric -> HighCut
+
+    MonoChain leftChain, rightChain; // Need 2 MonoChains to process stereo audio
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQAudioProcessor)
 };
