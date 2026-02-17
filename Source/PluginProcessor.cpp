@@ -166,7 +166,8 @@ bool SimpleEQAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* SimpleEQAudioProcessor::createEditor()
 {
-    return new SimpleEQAudioProcessorEditor (*this);
+    // return new SimpleEQAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -181,6 +182,89 @@ void SimpleEQAudioProcessor::setStateInformation (const void* data, int sizeInBy
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+}
+
+/*
+ * Spec:
+ * 3 Bands: Low, High, Parametric/Peak
+ * Cut Bands: Controllable Frequency/Slope
+ * Parametric Band: Controllable Frequency, Gain, Quality
+ */
+juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    /*
+     * make_unique:
+     * Utility function added in C++14
+     * Creates a unique_ptr object which is a smart pointer that manages the lifetime of dynamically allocated objects
+     * Safer than using the new operator directly because the object is automatically destroyed when it goes out of scope
+     */
+    layout.add(std::make_unique<juce::AudioParameterFloat>("LowCut Freq", // Parameter ID
+                                                           "LowCut Freq", // Parameter Name
+                                                           /*
+                                                            * NormalisableRange<ValueType>(rangeStart, rangeEnd, intervalValue, skewFactor)
+                                                            * intervalValue -> Step for the change in value
+                                                            * skewFactor -> Alters the way values are distributed across the range:
+                                                            * Factor 1.0: No skewing effect
+                                                            * Factor < 1.0: Lower end will fill a larger proportion of the availalbe space
+                                                            * Factor > 1.0: Higher end will fill a larger proportion of the available space
+                                                            */
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f), // Normalisable Range -> Human Hearing Range: 20 Hz - 20, 000 Hz
+                                                           20.f)); // Default Value
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("HighCut Freq",
+                                                           "HighCut Freq",
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           20000.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak Freq",
+                                                           "Peak Freq",
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           750.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak Gain",
+                                                           "Peak Gain",
+                                                           juce::NormalisableRange<float>(-24.f, 24.f, 0.5f, 1.f), // Decible Range: -24 dB - 24 dB
+                                                           0.f));
+
+    /*
+     * Q Value:
+     * Quality Control is how tight/wide the band is
+     * Narrow Q: High Q Value
+     * Wide Q: Low Q Value
+     */
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak Quality",
+                                                           "Peak Quality",
+                                                           juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f), // Q Range: 0.1 - 10
+                                                           1.f));
+
+    /*
+     * Cut-off Filter:
+     * Expressed in dB/Oct
+     * Used to reduce the energy above or below the cut-off frequency
+     */
+    // Create StringArray needed for AudioParameterChoice with the Cut-off Filter Values: 12, 24, 36, 48
+    juce::StringArray stringArray;
+    for (int i = 0; i < 4; i++)
+    {
+        juce::String str;
+        str << (12 + i * 12); // Calculate filter value
+        str << " db/Oct"; // Add unit
+        stringArray.add(str); // Add to array
+    }
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>("LowCut Slope", // Parameter ID
+                                                            "LowCut Slope", // Parameter Name
+                                                            stringArray, // Choices -> Cut-off Filter Values
+                                                            0)); // Default Item Index
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>("HighCut Slope",
+                                                            "HighCut Slope",
+                                                            stringArray,
+                                                            0));
+
+    return layout;
 }
 
 //==============================================================================
